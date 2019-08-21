@@ -1,2 +1,2 @@
-# hybridmoodle
-Repository for Moodle hybrid deployments
+# Hybrid Moodle
+Repository for Moodle hybrid deployments 
