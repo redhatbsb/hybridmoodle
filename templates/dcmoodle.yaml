@@ -1,0 +1,84 @@
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  annotations:
+    openshift.io/generated-by: OpenShiftWebConsole
+  generation: 6
+  labels:
+    app: moodle
+  name: moodle
+spec:
+  replicas: 1
+  selector:
+    app: moodle
+    deploymentconfig: moodle
+  strategy:
+    activeDeadlineSeconds: 21600
+    resources: {}
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      annotations:
+        openshift.io/generated-by: OpenShiftWebConsole
+      creationTimestamp: null
+      labels:
+        app: moodle
+        deploymentconfig: moodle
+    spec:
+      containers:
+      - env:
+        - name: MOODLE_DATABASE_PASSWORD
+          value: moodle
+        - name: MOODLE_DATABASE_USER
+          value: moodle
+        - name: MOODLE_DATABASE_NAME
+          value: moodle
+        - name: MARIADB_HOST
+          value: mysql
+        image: bitnami/moodle@sha256:1665ceefaeab12ede8cf3246b2b27c490551eafc3dc9b6136d748f5575fc30f9
+        imagePullPolicy: Always
+        name: moodle
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        - containerPort: 443
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+          - mountPath: /bitnami
+            name: moodle-data
+        volumes:
+        - name: moodle-data
+          persistentVolumeClaim:
+            claimName: moodle-data
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: moodle-1
+      - name: volume-sq7q8
+        persistentVolumeClaim:
+          claimName: moodle
+  test: false
+  triggers:
+  - type: ConfigChange
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - moodle
+      from:
+        kind: ImageStreamTag
+        name: moodle:latest
+        namespace: moodle
+    type: ImageChange
