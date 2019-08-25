@@ -1,12 +1,21 @@
 - hosts: localhost
   vars: 
-    cluster_origem: "https://ec2-18-231-150-117.sa-east-1.compute.amazonaws.com:8443"
-    token_cluster_origem: "31ybb70WAQQ0N9_-nLV2bpwCGly4J8Yrf0K8X-gFJOc"
-    cluster_destino: "https://34.74.72.196:8443"
-    token_cluster_destino: "ZvR3pk_BFInTjT_JyfwSM4tEzj7-JGQGmAD5nmqH0CY"
     nome_projeto_origem: "moodle-5"
-    nome_projeto_destino: "moodle-from-aws"
+    nome_projeto_destino: "moodle-from-aws-2"
   tasks:
+  - name: Carregando variaveis de config.yml
+    include_vars: config.yaml
+
+  - name: Cria diretorio temp
+    file:
+     path: "{{ playbook_dir }}/temp"
+     state: directory
+     mode: 0777
+
+  - name: Remove todos os arquivos temporarios
+    shell: "rm -f temp/*"
+    ignore_errors: yes
+
   - name: Login no cluster destino...
     shell:  "oc login {{ cluster_destino }} -u superadmin -p {{ token_cluster_destino }} --insecure-skip-tls-verify=true"
 
@@ -29,7 +38,7 @@
     ignore_errors: yes
 
   - name: Copia arquivo para local
-    shell: "oc cp {{  nome_projeto_origem }}/{{ podmoodleorig.stdout }}:/var/www/moodledata/moodledata.tar.gz temp/"
+    shell: "oc cp {{  nome_projeto_origem }}/{{ podmoodleorig.stdout }}:/var/www/moodledata/moodledata.tar.gz temp/moodledata.tar.gz"
    
   - name: Obtem pod do banco
     shell: "oc get pods -n {{  nome_projeto_origem }} -l name=mysql | grep Running | tail -n 1 | awk {'print $1'}"
@@ -67,3 +76,4 @@
 
   - name: Restaura banco destino
     shell: "oc rsh -n {{  nome_projeto_destino }} {{ podmysqldest.stdout }} /opt/rh/rh-mysql57/root/usr/bin/mysql -u root moodle < ./temp/dump.sql"
+
