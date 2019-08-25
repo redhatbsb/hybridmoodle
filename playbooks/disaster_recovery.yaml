@@ -1,0 +1,62 @@
+- hosts: localhost
+  vars: 
+    cluster_origem: "https://ec2-18-231-150-117.sa-east-1.compute.amazonaws.com:8443"
+    token_cluster_origem: "31ybb70WAQQ0N9_-nLV2bpwCGly4J8Yrf0K8X-gFJOc"
+    cluster_destino: "https://ec2-18-231-150-117.sa-east-1.compute.amazonaws.com:8443"
+    token_cluster_destino: "31ybb70WAQQ0N9_-nLV2bpwCGly4J8Yrf0K8X-gFJOc"
+    nome_projeto_origem: "moodle-5"
+    nome_projeto_destino: "moodle-teste-3"
+  tasks:
+  - name: Login no cluster destino...
+    shell:  "oc login {{ cluster_destino }} -u superadmin -p {{ token_cluster_destino }}"
+
+  - name: Cria projeto no cluster destino
+    shell: "oc new-project {{ nome_projeto_destino }} || echo 'Projeto ja existe'"
+
+  - name: Cria estruturas Moodle no Projeto Destino
+    shell: "oc new-app moodle-demo -n {{ nome_projeto_destino }} || echo 'App ja existe'"
+
+  - name: Login no cluster origem...
+    shell:  "oc login {{ cluster_origem }} -u superadmin -p {{ token_cluster_origem }}"
+
+  - name: Obtem um pod do moodle para backup
+    shell: "oc get pods -n {{  nome_projeto_origem }} -l app=moodle2 | grep Running | tail -n 1 | awk {'print $1'}" 
+    register: podmoodleorig
+
+  - name: Gera backup /var/www/moodledata 
+    shell: "oc rsh -n {{  nome_projeto_origem }} {{ podmoodleorig.stdout }} tar -zcvf /var/www/moodledata/moodledata.tar.gz /var/www/moodledata/"
+    ignore_errors: yes
+
+  - name: Copia arquivo para local
+    shell: "oc cp {{  nome_projeto_origem }}/{{ podmoodleorig.stdout }}:/var/www/moodledata/moodledata.tar.gz temp/"
+   
+  - name: Obtem pod do banco
+    shell: "oc get pods -n {{  nome_projeto_origem }} -l name=mysql | grep Running | tail -n 1 | awk {'print $1'}"
+    register: podmysqlorig
+ 
+  - name: Efetua dump do banco
+    shell: "oc rsh -n {{  nome_projeto_origem }} {{ podmysqlorig.stdout }} /opt/rh/rh-mysql57/root/usr/bin/mysqldump -u root moodle > ./temp/dump.sql"
+
+  - name: Login no cluster destino...
+    shell:  "oc login {{ cluster_destino }} -u superadmin -p {{ token_cluster_destino }}"
+
+  - name: Obtem um pod do moodle para restauracao
+    shell: "oc get pods -n {{  nome_projeto_destino }} -l app=moodle2 | grep Running | tail -n 1 | awk {'print $1'}"
+    register: podmoodledest
+
+  - name: Copia arquivo backup /var/www/moodledata/ para pod destino
+    shell: "oc cp temp/moodledata.tar.gz {{ nome_projeto_destino }}/{{ podmoodledest.stdout }}:/tmp/"
+
+  - name: Restaura FS
+    shell: "oc rsh -n {{  nome_projeto_destino }} {{ podmoodledest.stdout }} tar -zxvf /tmp/moodledata.tar.gz -C /"
+    ignore_errors: yes
+
+  - name: Obtem pod banco destino
+    shell: "oc get pods -n {{  nome_projeto_destino }} -l name=mysql | grep Running | tail -n 1 | awk {'print $1'}"
+    register: podmysqldest
+
+#  - name: Copia dump para mysql destino
+#    shell: "oc cp temp/dump.sql {{ nome_projeto_destino }}/{{ podmysqldest.stdout }}:/tmp/"
+
+  - name: Restaura banco destino
+    shell: "oc rsh -n {{  nome_projeto_destino }} {{ podmysqldest.stdout }} /opt/rh/rh-mysql57/root/usr/bin/mysql -u root moodle < ./temp/dump.sql"
